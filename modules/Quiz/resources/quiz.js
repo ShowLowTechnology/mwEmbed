@@ -35,7 +35,7 @@
 				var entryRequest = {
 					'service': 'baseEntry',
 					'action': 'get',
-					'entryId': "0_l1v5vzh3"
+					'entryId': embedPlayer.kentryid
 				};
 				_this.getKClient().doRequest(entryRequest, function (entryDataResult) {
 					_this.entryData = entryDataResult;
