@@ -18,7 +18,6 @@
 
 		},
 
-		iconBtnClass: "icon-share",
 		entryData: null,
 
 		setup: function () {
