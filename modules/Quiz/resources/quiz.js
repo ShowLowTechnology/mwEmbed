@@ -19,6 +19,7 @@
 		},
 
 		entryData: null,
+		state: "start",
 
 		setup: function () {
 
@@ -55,6 +56,13 @@
 			return {
 				'quiz': this
 			};
+		},
+
+		startQuiz: function(){
+			this.state="question";
+			this.removeScreen();
+			this.showScreen();
+			//this.getPlayer().play();
 		}
 
 
