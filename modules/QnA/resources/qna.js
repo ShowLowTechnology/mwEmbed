@@ -41,6 +41,11 @@
 						onVideoTogglePluginButton.addClass('icon-qna-close');
 					}
 				})
+
+				//update display - commented out since it make it hard to debug stuff
+				setInterval(function(){
+					_this.getQnaContainer();
+				}, 10000);
 			});
 
 			this.bind('onOpenFullScreen', function() {
@@ -89,25 +94,36 @@
 				var cssLink = this.getConfig('cssFileName');
 				if (cssLink) {
 					cssLink = cssLink.toLowerCase().indexOf("http") === 0 ? cssLink : kWidget.getPath() + cssLink; // support external CSS links
-					$( 'head', window.parent.document ).append( '<link type="text/css" rel="stylesheet" href="' + cssLink + '"/>' );
+					$('head', window.parent.document).append('<link type="text/css" rel="stylesheet" href="' + cssLink + '"/>');
 				} else {
-					mw.log( "Error: "+ this.pluginName +" could not find CSS link" );
+					mw.log("Error: " + this.pluginName + " could not find CSS link");
 				}
 
-				var iframeParent = window['parent'].document.getElementById( this.embedPlayer.id );
-				$( iframeParent ).parent().find( "#" + this.getConfig( 'qnaTargetId' ) ).html( "<div class='qnaInterface'></div>" );
-				this.$qnaListContainer = $( iframeParent ).parent().find( ".qnaInterface" );
-				this.$qnaListContainer.append(this.getHTML());
-
-				this.bindButtons();
-				this.positionOnVideoButton();
+				var iframeParent = window['parent'].document.getElementById(this.embedPlayer.id);
+				$(iframeParent).parent().find("#" + this.getConfig('qnaTargetId')).html("<div class='qnaInterface'></div>");
+				this.$qnaListContainer = $(iframeParent).parent().find(".qnaInterface");
 			}
+			var elem = this.$qnaListContainer.find(".qnaModuleBackground");
+
+			// call getHTML before we remove the element since we get some data from the existing one
+			var newHtml = this.getHTML();
+			if (elem.length > 0){
+				(elem[0]).remove();
+			}
+
+			this.$qnaListContainer.append(newHtml);
+
+			// if we did not remove anything this is the first time, so do the reset
+			// otherwise the text was generated there from last text
+			this.bindButtons(elem.length === 0);
+			this.positionOnVideoButton();
+
 			return this.$qnaListContainer;
 		},
 
 		positionOnVideoButton : function(){
 			var onVideoTogglePluginButton = $('.qna-on-video-btn');
-			var videoHeight = this.getPlayer().getVideoHolder().height();
+			var videoHeight = this.getPlayer().getHeight();
 			var buttonHeight = Math.round(videoHeight / 5);
 			var buttonWidth = Math.round(videoHeight / 10);
 			onVideoTogglePluginButton.css({height: buttonHeight + "px"});
@@ -128,7 +144,8 @@
 
 		},
 
-		bindButtons : function(){
+		bindButtons : function(resetTextArea){
+			resetTextArea = typeof resetTextArea !== 'undefined' ? resetTextArea : true;
 			var _this = this;
 			var parentWindowDocument = $( window['parent'].document );
 			var sendButton = parentWindowDocument.find('.qnaSendButton');
@@ -155,7 +172,9 @@
 				});
 
 			var textArea = parentWindowDocument.find('.qnaQuestionTextArea');
-			_this.resetTextArea(textArea);
+			if (resetTextArea) {
+				_this.resetTextArea(textArea);
+			}
 			textArea
 				.off('focus')
 				.on('focus', function(){
@@ -182,6 +201,7 @@
 		},
 
 		resetTextArea : function(textArea){
+
 			textArea.val(gM('qna-default-question-box-text'));
 			textArea.css({'font-weight': 300});
 			textArea.css({'color': 'rgba(255, 240, 240, 0.61)'});
@@ -192,8 +212,54 @@
 			var rawHTML = window.kalturaIframePackageData.templates[ templatePath ];
 
 			var transformedHTML = mw.util.tmpl( rawHTML );
-			transformedHTML = transformedHTML(data);
+
+			var parentWindowDocument = $( window['parent'].document );
+			var question = parentWindowDocument.find('.qnaQuestionTextArea').val();
+
+			transformedHTML = transformedHTML({qnaEntryArray:this.getQnaData(), questionBoxText:question});
 			return transformedHTML;
+		},
+
+		// Get the Q&A data from the server.
+		getQnaData : function(){
+			var qnaEntryArray = [];
+			qnaEntryArray[qnaEntryArray.length] = {
+				threadId: "s9oa3cc",
+				type: "announcement",
+				title: gM('qna-announcement-title'),
+				text:"All your bases are belong to us"
+			};
+			// The below (commented out) is supposed to simulate a Q&A thread
+			//qnaEntryArray[qnaEntryArray.length] = {
+			//	threadId: "qyv78s1",
+			//	type: "qna_thread",
+			//	title: gM('qna-you-asked'),
+			//	text: "gadol",
+			//	qnalist: [
+			//		{id: "d873j9", title:"aaa", text:"fdgfdgdfgsd sdf sf d"},
+			//		{id: "i8a3xw", title:"aaa", text:"fdgfdgdfgsd sdf sf d"},
+			//	]
+			//};
+			qnaEntryArray[qnaEntryArray.length] = {
+				threadId: "qyv78a7",
+				type: "announcement",
+				title: gM('qna-announcement-title'),
+				text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum a eros eu quam dictum sagittis. Nam sit amet odio turpis. Morbi mauris nisi, consequat et tortor a, vehicula pharetra sem. Nunc vitae lacus id sapien tristique pretium at non lorem. Integer venenatis lacus nec erat."
+			};
+			qnaEntryArray[qnaEntryArray.length] = {
+				threadId: "",
+				type: "announcement",
+				title: gM('qna-announcement-title'),
+				text:"This is a sample text for an announcement"
+			};
+			qnaEntryArray[qnaEntryArray.length] = {
+				threadId: "",
+				type: "announcement",
+				title: gM('qna-announcement-title'),
+				text:"just one more announcement..."
+			};
+
+			return qnaEntryArray;
 		}
 	}));
 

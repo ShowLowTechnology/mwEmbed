@@ -2,7 +2,9 @@
     <div class="qnaQuestionArea">
         <div class="qnaQuestionBox">
             <label class="qnaPipeLable">|</label>
-            <textarea class="qnaQuestionTextArea" rows="2"></textarea>
+            <textarea class="qnaQuestionTextArea" rows="2">
+                <%=questionBoxText%>
+            </textarea>
         </div>
         <div class="qnaQuestionButtonsArea">
             <div class="qnaButtonsContainer">
@@ -12,4 +14,19 @@
             </div>
         </div>
     </div>
+
+    <!--<div class="qnaAnnouncements">-->
+    <!--</div>-->
+    <ul class="qnaEntryList">
+        <% for ( var i = 0; i < qnaEntryArray.length; i++ ) { %>
+            <%var myIndex =  i;%>
+            <%var qnaEntry =  qnaEntryArray[i];%>
+            <li class="qnaEntryListLI" myIndex="<%=i%>">
+            <div class="qnaEntry">
+                <p class="qnaEntryTitle"><%=qnaEntry.title%></p>
+                <p class="qnaEntryText"><%=qnaEntry.text%></p>
+            </div>
+            </li>
+        <% } %>
+    </ul>
 </div>
