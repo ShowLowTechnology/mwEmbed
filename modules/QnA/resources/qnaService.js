@@ -139,8 +139,9 @@ DAL for Q&A Module
         QandA_ResponseProfileSystemName: "QandA",
         QandA_MetadataProfileSystemName: "QandA",
         QandA_cuePointTag: "qna",
-        useResponseProfile: false,
+        useResponseProfile: true,
         QandA_cuePointTypes: {"Question":1,"Answer":2, "Announcement":3},
+        bootPromise:null,
 
 
         init: function (embedPlayer, qnaPlugin) {
@@ -192,6 +193,7 @@ DAL for Q&A Module
         },
 
         submitQuestion: function (question, parent) {
+
             var embedPlayer = this.embedPlayer;
             var _this = this;
 
@@ -409,51 +411,99 @@ DAL for Q&A Module
             return new QnaEntry(cuePoint);
         },
 
+        boot:function() {
+
+            if (this.bootPromise) {
+                return this.bootPromise;
+            }
+
+            var _this=this;
+
+            var deferred = $.Deferred();
+            var listMetadataProfileRequest = {
+                service: "metadata_metadataprofile",
+                action: "list",
+                "filter:systemNameEqual": this.QandA_MetadataProfileSystemName
+            };
+            var getCurrentUser = {
+                service: "session",
+                action: "get"
+            };
+
+            this.getKClient().doRequest([listMetadataProfileRequest,getCurrentUser], function (result) {
+                _this.metadataProfile = result[0].objects[0];
+                _this.userId=result[1].userId;
+
+                deferred.resolve();
+            });
+
+            this.bootPromise=deferred;
+            return this.bootPromise;
+        },
+
         requestCuePoints:function() {
             var _this = this;
 
-            var entryId = _this.embedPlayer.kentryid;
-            var request = {
-                'service': 'cuepoint_cuepoint',
-                'action': 'list',
-                'filter:tagsLike':_this.QandA_cuePointTag,
-                'filter:entryIdEqual': entryId,
-                'filter:objectType': 'KalturaAnnotationFilter',
-                'filter:orderBy': '+createdAt'
-            };
 
-            if (_this.useResponseProfile) {
-                request["responseProfile:objectType"]="KalturaResponseProfileHolder";
-                request["responseProfile:systemName"]=_this.QandA_ResponseProfileSystemName;
-            }
-            var lastUpdatedAt = _this.lastUpdateTime + 1;
-            // Only add lastUpdatedAt filter if any cue points already received
-            if (lastUpdatedAt > 0) {
-                request['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
-            }
-            _this.getKClient().doRequest( request,
-                function (data) {
-                    // if an error pop out:
-                    if (!data || data.code) {
-                        // todo: add error handling
-                        mw.log("Error:: KCuePoints could not retrieve live cuepoints");
-                        return;
-                    }
 
-                    data.objects.forEach(function(cuePoint) {
+            this.boot().then(function() {
 
-                        var item=_this.annotationCuePointToQnaEntry(cuePoint);
+                var entryId = _this.embedPlayer.kentryid;
 
-                        if (item) {
+                //we want to search all cuepoints assigned to me (IsPublic=true,and metadata field assigned to contains my user),
+                // public announcements  (IsPublic=true), which no-one is assigned to
+                //and cue points that I created
+                var request = {
+                    'service': 'cuepoint_cuepoint',
+                    'action': 'list',
+                    'filter:tagsLike': _this.QandA_cuePointTag,
+                    'filter:entryIdEqual': entryId,
+                    'filter:objectType': 'KalturaAnnotationFilter',
+                    'filter:orderBy': '+createdAt',
+/*
+                    'filter:advancedSearch:objectType': 'KalturaMetadataSearchItem',
+                    'filter:advancedSearch:metadataProfileId': _this.metadataProfile.id,
+                    'filter:advancedSearch:type': 2, //or
+                    //search all ones that i'm assigned to
+                    'filter:advancedSearch:items:item0:objectType': "KalturaSearchCondition",
+                    'filter:advancedSearch:items:item0:field': "/*[local-name()='metadata']/*[local-name()='Assignees']",
+                    'filter:advancedSearch:items:item0:value': _this.userId,
+                    */
+                };
 
-                            if (_this.lastUpdateTime < cuePoint.updatedAt) {
-                                _this.lastUpdateTime = cuePoint.updatedAt;
-                            }
-                            _this.addOrUpdateEntry(item);
-                        }
-                    });
+                if (_this.useResponseProfile) {
+                    request["responseProfile:objectType"] = "KalturaResponseProfileHolder";
+                    request["responseProfile:systemName"] = _this.QandA_ResponseProfileSystemName;
                 }
-            );
+                var lastUpdatedAt = _this.lastUpdateTime + 1;
+                // Only add lastUpdatedAt filter if any cue points already received
+                if (lastUpdatedAt > 0) {
+                    request['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
+                }
+                _this.getKClient().doRequest(request,
+                    function (data) {
+                        // if an error pop out:
+                        if (!data || data.code) {
+                            // todo: add error handling
+                            mw.log("Error:: KCuePoints could not retrieve live cuepoints");
+                            return;
+                        }
+
+                        data.objects.forEach(function (cuePoint) {
+
+                            var item = _this.annotationCuePointToQnaEntry(cuePoint);
+
+                            if (item) {
+
+                                if (_this.lastUpdateTime < cuePoint.updatedAt) {
+                                    _this.lastUpdateTime = cuePoint.updatedAt;
+                                }
+                                _this.addOrUpdateEntry(item);
+                            }
+                        });
+                    }
+                );
+            });
         },
 
         //Currently there is no notification, so we poll the API
