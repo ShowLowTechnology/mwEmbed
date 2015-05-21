@@ -139,7 +139,6 @@ DAL for Q&A Module
         QandA_ResponseProfileSystemName: "QandA",
         QandA_MetadataProfileSystemName: "QandA",
         QandA_cuePointTag: "qna",
-        useResponseProfile: true,
         QandA_cuePointTypes: {"Question":1,"Answer":2, "Announcement":3},
         bootPromise:null,
 
@@ -219,7 +218,8 @@ DAL for Q&A Module
                 "cuePoint:startTime": embedPlayer.currentTime,
                 "cuePoint:text": question,
                 "cuePoint:tags": this.QandA_cuePointTag,
-                "cuePoint:partnerData": xmlData
+                "cuePoint:partnerData": xmlData,
+                'cuePoint:isPublic': 1
             };
             if (parent) {
                 createCuePointRequest["cuePoint:parentId"] = parent.id;
@@ -433,7 +433,7 @@ DAL for Q&A Module
             this.getKClient().doRequest([listMetadataProfileRequest,getCurrentUser], function (result) {
                 _this.metadataProfile = result[0].objects[0];
                 _this.userId=result[1].userId;
-
+                _this.userId="admin";
                 deferred.resolve();
             });
 
@@ -453,34 +453,47 @@ DAL for Q&A Module
                 //we want to search all cuepoints assigned to me (IsPublic=true,and metadata field assigned to contains my user),
                 // public announcements  (IsPublic=true), which no-one is assigned to
                 //and cue points that I created
-                var request = {
+
+                var baseCuePointsRequest = {
                     'service': 'cuepoint_cuepoint',
                     'action': 'list',
                     'filter:tagsLike': _this.QandA_cuePointTag,
                     'filter:entryIdEqual': entryId,
                     'filter:objectType': 'KalturaAnnotationFilter',
                     'filter:orderBy': '+createdAt',
-/*
+                    'filter:isPublicEqual': '1',
+                    "responseProfile:objectType": "KalturaResponseProfileHolder",
+                    "responseProfile:systemName": _this.QandA_ResponseProfileSystemName
+                }
+
+                var myCreatedCuePointsRequest = $.extend({},baseCuePointsRequest,  {
+                    'filter:userIdEqual':_this.userId
+                });
+
+                var cuePointsAssignedToMeRequest =  $.extend({},baseCuePointsRequest, {
                     'filter:advancedSearch:objectType': 'KalturaMetadataSearchItem',
                     'filter:advancedSearch:metadataProfileId': _this.metadataProfile.id,
                     'filter:advancedSearch:type': 2, //or
+
                     //search all ones that i'm assigned to
                     'filter:advancedSearch:items:item0:objectType': "KalturaSearchCondition",
                     'filter:advancedSearch:items:item0:field': "/*[local-name()='metadata']/*[local-name()='Assignees']",
                     'filter:advancedSearch:items:item0:value': _this.userId,
-                    */
-                };
 
-                if (_this.useResponseProfile) {
-                    request["responseProfile:objectType"] = "KalturaResponseProfileHolder";
-                    request["responseProfile:systemName"] = _this.QandA_ResponseProfileSystemName;
-                }
+                    //find all announcements
+                    'filter:advancedSearch:items:item1:objectType': "KalturaSearchCondition",
+                    'filter:advancedSearch:items:item1:field': "/*[local-name()='metadata']/*[local-name()='Type']",
+                    'filter:advancedSearch:items:item1:value': "Announcement"
+                });
+
+
                 var lastUpdatedAt = _this.lastUpdateTime + 1;
                 // Only add lastUpdatedAt filter if any cue points already received
                 if (lastUpdatedAt > 0) {
-                    request['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
+                    myCreatedCuePointsRequest['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
+                    cuePointsAssignedToMeRequest['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
                 }
-                _this.getKClient().doRequest(request,
+                _this.getKClient().doRequest([myCreatedCuePointsRequest,cuePointsAssignedToMeRequest],
                     function (data) {
                         // if an error pop out:
                         if (!data || data.code) {
@@ -489,7 +502,9 @@ DAL for Q&A Module
                             return;
                         }
 
-                        data.objects.forEach(function (cuePoint) {
+                        var cuePoints=data[0].objects.concat(data[1].objects);
+
+                        cuePoints.forEach(function (cuePoint) {
 
                             var item = _this.annotationCuePointToQnaEntry(cuePoint);
 
