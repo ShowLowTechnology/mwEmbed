@@ -206,6 +206,7 @@ DAL for Q&A Module
                 //no threadid!
                 metadata.Type="Question";
             }
+            metadata.ThreadCreatorId=this.userId;
 
             var xmlData = _this.createMetadataXmlFromObject(metadata);
 
@@ -425,15 +426,10 @@ DAL for Q&A Module
                 action: "list",
                 "filter:systemNameEqual": this.QandA_MetadataProfileSystemName
             };
-            var getCurrentUser = {
-                service: "session",
-                action: "get"
-            };
 
-            this.getKClient().doRequest([listMetadataProfileRequest,getCurrentUser], function (result) {
+            this.getKClient().doRequest([listMetadataProfileRequest], function (result) {
                 _this.metadataProfile = result[0].objects[0];
-                _this.userId=result[1].userId;
-                _this.userId="admin";
+                _this.userId=_this.qnaPlugin.getConfig("userId");
                 deferred.resolve();
             });
 
@@ -454,7 +450,7 @@ DAL for Q&A Module
                 // public announcements  (IsPublic=true), which no-one is assigned to
                 //and cue points that I created
 
-                var baseCuePointsRequest = {
+                var cuePointsRequest = {
                     'service': 'cuepoint_cuepoint',
                     'action': 'list',
                     'filter:tagsLike': _this.QandA_cuePointTag,
@@ -463,37 +459,32 @@ DAL for Q&A Module
                     'filter:orderBy': '+createdAt',
                     'filter:isPublicEqual': '1',
                     "responseProfile:objectType": "KalturaResponseProfileHolder",
-                    "responseProfile:systemName": _this.QandA_ResponseProfileSystemName
-                }
+                    "responseProfile:systemName": _this.QandA_ResponseProfileSystemName,
 
-                var myCreatedCuePointsRequest = $.extend({},baseCuePointsRequest,  {
-                    'filter:userIdEqual':_this.userId
-                });
-
-                var cuePointsAssignedToMeRequest =  $.extend({},baseCuePointsRequest, {
+                    /*Search  metadata   */
                     'filter:advancedSearch:objectType': 'KalturaMetadataSearchItem',
                     'filter:advancedSearch:metadataProfileId': _this.metadataProfile.id,
                     'filter:advancedSearch:type': 2, //or
 
-                    //search all ones that i'm assigned to
+                    //search all messages on my session id
                     'filter:advancedSearch:items:item0:objectType': "KalturaSearchCondition",
-                    'filter:advancedSearch:items:item0:field': "/*[local-name()='metadata']/*[local-name()='Assignees']",
+                    'filter:advancedSearch:items:item0:field': "/*[local-name()='metadata']/*[local-name()='ThreadCreatorId']",
                     'filter:advancedSearch:items:item0:value': _this.userId,
 
                     //find all announcements
                     'filter:advancedSearch:items:item1:objectType': "KalturaSearchCondition",
                     'filter:advancedSearch:items:item1:field': "/*[local-name()='metadata']/*[local-name()='Type']",
                     'filter:advancedSearch:items:item1:value': "Announcement"
-                });
+                };
 
 
                 var lastUpdatedAt = _this.lastUpdateTime + 1;
                 // Only add lastUpdatedAt filter if any cue points already received
                 if (lastUpdatedAt > 0) {
-                    myCreatedCuePointsRequest['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
-                    cuePointsAssignedToMeRequest['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
+                    cuePointsRequest['filter:updatedAtGreaterThanOrEqual'] = lastUpdatedAt;
                 }
-                _this.getKClient().doRequest([myCreatedCuePointsRequest,cuePointsAssignedToMeRequest],
+
+                _this.getKClient().doRequest(cuePointsRequest,
                     function (data) {
                         // if an error pop out:
                         if (!data || data.code) {
@@ -502,7 +493,7 @@ DAL for Q&A Module
                             return;
                         }
 
-                        var cuePoints=data[0].objects.concat(data[1].objects);
+                        var cuePoints=data.objects;
 
                         cuePoints.forEach(function (cuePoint) {
 
@@ -528,7 +519,7 @@ DAL for Q&A Module
             //Start live cuepoint pulling
             this.liveAQnaIntervalId = setInterval(function () {
                 _this.requestCuePoints();
-            }, mw.getConfig("qnaPollingInterval") || 10000);
+            }, _this.qnaPlugin.getConfig("qnaPollingInterval") || 10000);
         }
     };
 })(window.mw, window.jQuery);
